@@ -18,6 +18,7 @@
             --radius: 15px;
             --text-gray: #666;
             --placeholder: #bbb;
+            --warning: #ff4d4d;
         }
 
         body {
@@ -84,27 +85,39 @@
         }
         .clear-btn.active { display: block; }
 
+        .warning-badge {
+            position: absolute;
+            right: 15px;
+            bottom: 15px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--warning);
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
         .controls {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr);
             gap: 12px;
             margin-bottom: 20px;
         }
 
         .action-btn {
-            background: var(--main);
-            color: #fff;
+            background: var(--accent);
+            color: var(--main);
             border: none;
-            padding: 18px;
+            padding: 16px;
             border-radius: var(--radius);
             font-weight: 800;
-            font-size: 1.1rem;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: transform 0.05s, background-color 0.2s;
             touch-action: manipulation;
         }
         .action-btn:active { transform: scale(0.96); opacity: 0.9; }
-        .action-btn.secondary { background: var(--accent); color: var(--main); font-size: 0.95rem; }
+        .action-btn.primary { background: var(--main); color: #fff; grid-column: span 2; font-size: 1.1rem; }
+        .action-btn.copy { grid-column: span 2; font-size: 1rem; margin-top: 5px; }
         .action-btn.copied { background-color: #555 !important; }
 
         #toast {
@@ -156,16 +169,18 @@
 
 <div class="container">
     <h1>Sentence Chopper</h1>
-    <p class="subtitle">Chop long sentences. Write clearly.</p>
+    <p class="subtitle">Visualizing the weight of your English.</p>
 
     <div class="input-wrapper">
-        <textarea id="textInput" placeholder="Paste your long English text here...&#10;It will chop sentences at connectors like 'and' or 'but' to help you write shorter, stronger sentences." oninput="handleInput()"></textarea>
+        <textarea id="textInput" placeholder="Paste your long English text...&#10;It breaks long sentences at 'and', 'but', 'because', etc. to make them punchy." oninput="handleInput()"></textarea>
         <button class="clear-btn" id="clrBtn" onclick="clearText()">×</button>
+        <div class="warning-badge" id="warningBadge"></div>
     </div>
 
     <div class="controls">
-        <button class="action-btn" onclick="chopText()">Chop Sentences</button>
-        <button class="action-btn secondary" id="copyBtn" onclick="copyResult()">Copy Result</button>
+        <button class="action-btn" onclick="chopText()">Chop (Visual)</button>
+        <button class="action-btn" onclick="finalizeText()">Finalize (Fix)</button>
+        <button class="action-btn primary copy" id="copyBtn" onclick="copyResult()">Copy to Clipboard</button>
     </div>
 
     <div class="footer-btns">
@@ -194,6 +209,7 @@
     const clrBtn = document.getElementById('clrBtn');
     const toast = document.getElementById('toast');
     const copyBtn = document.getElementById('copyBtn');
+    const warningBadge = document.getElementById('warningBadge');
     let toastTimer;
 
     const connectors = [
@@ -205,26 +221,31 @@
         const saved = localStorage.getItem('chopper_data');
         if (saved) {
             textInput.value = saved;
-            updateClearBtn();
+            updateUI();
         }
     };
 
     function handleInput() {
-        updateClearBtn();
+        updateUI();
         saveData();
+    }
+
+    function updateUI() {
+        clrBtn.classList.toggle('active', textInput.value !== '');
+        
+        // 警告ロジック：一文に20単語以上あるかチェック
+        const lines = textInput.value.split('\n');
+        const longLine = lines.some(line => line.trim().split(/\s+/).length > 20);
+        warningBadge.innerText = longLine ? '! Sentence too long' : '';
     }
 
     function saveData() {
         localStorage.setItem('chopper_data', textInput.value);
     }
 
-    function updateClearBtn() {
-        clrBtn.classList.toggle('active', textInput.value !== '');
-    }
-
     function clearText() {
         textInput.value = '';
-        updateClearBtn();
+        updateUI();
         saveData();
         textInput.focus();
     }
@@ -233,22 +254,39 @@
         let text = textInput.value;
         if (!text.trim()) return;
 
-        // 接続詞の直前で改行（大文字小文字無視、単語境界チェック）
-        // カンマ+スペース+接続詞 のパターンも考慮
         connectors.forEach(word => {
             const regex = new RegExp(`(\\s?,?\\s+)(?=${word}\\b)`, 'gi');
             text = text.replace(regex, '\n');
         });
 
-        // 連続する空行を整理し、各行をトリム
-        text = text.split('\n')
-                   .map(line => line.trim())
-                   .filter(line => line.length > 0)
-                   .join('\n\n'); // 視認性を高めるため1行あける
-
-        textInput.value = text;
+        textInput.value = text.split('\n').map(l => l.trim()).filter(l => l).join('\n\n');
+        updateUI();
         saveData();
-        showToast('Chopped!');
+        showToast('Visual Chop!');
+    }
+
+    function finalizeText() {
+        let lines = textInput.value.split('\n').map(l => l.trim()).filter(l => l);
+        if (lines.length === 0) return;
+
+        const finalized = lines.map(line => {
+            let s = line;
+            // 冒頭の接続詞とカンマを削除
+            connectors.forEach(word => {
+                const regex = new RegExp(`^(${word}|,\\s+${word})\\s+`, 'i');
+                s = s.replace(regex, '');
+            });
+            // 先頭を大文字に
+            s = s.charAt(0).toUpperCase() + s.slice(1);
+            // 末尾にピリオドがなければ追加
+            if (!/[.!?]$/.test(s)) s += '.';
+            return s;
+        });
+
+        textInput.value = finalized.join('\n\n');
+        updateUI();
+        saveData();
+        showToast('Finalized!');
     }
 
     async function copyResult() {
@@ -256,7 +294,7 @@
         try {
             await navigator.clipboard.writeText(textInput.value);
             const originalText = copyBtn.innerText;
-            copyBtn.innerText = 'Copied!';
+            copyBtn.innerText = 'Copied to Clipboard!';
             copyBtn.classList.add('copied');
             showToast('Copied!');
             setTimeout(() => {
