@@ -66,8 +66,17 @@
             -webkit-text-fill-color: var(--main) !important;
             opacity: 1 !important;
             user-select: text;
+            transition: border-color 0.3s;
         }
         textarea::placeholder { color: var(--placeholder); -webkit-text-fill-color: var(--placeholder); }
+
+        /* 警告時のフラッシュ効果 */
+        @keyframes flash-red {
+            0% { border-color: var(--border); }
+            50% { border-color: var(--warning); box-shadow: 0 0 10px rgba(255, 77, 77, 0.2); }
+            100% { border-color: var(--border); }
+        }
+        .warning-flash { animation: flash-red 0.8s ease-out; }
 
         .clear-btn {
             position: absolute;
@@ -93,8 +102,10 @@
             font-weight: 800;
             color: var(--warning);
             pointer-events: none;
-            opacity: 0.6;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
+        .warning-badge.active { opacity: 0.8; }
 
         .controls {
             display: grid;
@@ -169,17 +180,17 @@
 
 <div class="container">
     <h1>Sentence Chopper</h1>
-    <p class="subtitle">Visualizing the weight of your English.</p>
+    <p class="subtitle">Chop long sentences. Write clearly.</p>
 
     <div class="input-wrapper">
         <textarea id="textInput" placeholder="Paste your long English text...&#10;It breaks long sentences at 'and', 'but', 'because', etc. to make them punchy." oninput="handleInput()"></textarea>
         <button class="clear-btn" id="clrBtn" onclick="clearText()">×</button>
-        <div class="warning-badge" id="warningBadge"></div>
+        <div class="warning-badge" id="warningBadge">! Sentence too long</div>
     </div>
 
     <div class="controls">
         <button class="action-btn" onclick="chopText()">Chop (Visual)</button>
-        <button class="action-btn" onclick="finalizeText()">Finalize (Fix)</button>
+        <button class="action-btn" onclick="finalizeText()">Finalize (Toggle)</button>
         <button class="action-btn primary copy" id="copyBtn" onclick="copyResult()">Copy to Clipboard</button>
     </div>
 
@@ -211,6 +222,7 @@
     const copyBtn = document.getElementById('copyBtn');
     const warningBadge = document.getElementById('warningBadge');
     let toastTimer;
+    let finalizeToggle = true; // true: \n\n, false: \n
 
     const connectors = [
         'and', 'but', 'or', 'so', 'because', 'although', 
@@ -221,22 +233,35 @@
         const saved = localStorage.getItem('chopper_data');
         if (saved) {
             textInput.value = saved;
-            updateUI();
+            updateUI(false); // 初期読み込み時はフラッシュさせない
         }
     };
 
     function handleInput() {
-        updateUI();
+        updateUI(true);
         saveData();
     }
 
-    function updateUI() {
+    function updateUI(shouldFlash) {
         clrBtn.classList.toggle('active', textInput.value !== '');
         
-        // 警告ロジック：一文に20単語以上あるかチェック
         const lines = textInput.value.split('\n');
-        const longLine = lines.some(line => line.trim().split(/\s+/).length > 20);
-        warningBadge.innerText = longLine ? '! Sentence too long' : '';
+        const hasLongLine = lines.some(line => {
+            const words = line.trim().split(/\s+/).filter(w => w.length > 0);
+            return words.length > 20;
+        });
+
+        if (hasLongLine) {
+            if (!warningBadge.classList.contains('active') && shouldFlash) {
+                textInput.classList.remove('warning-flash');
+                void textInput.offsetWidth; // リフロー強制
+                textInput.classList.add('warning-flash');
+            }
+            warningBadge.classList.add('active');
+        } else {
+            warningBadge.classList.remove('active');
+            textInput.classList.remove('warning-flash');
+        }
     }
 
     function saveData() {
@@ -245,7 +270,7 @@
 
     function clearText() {
         textInput.value = '';
-        updateUI();
+        updateUI(false);
         saveData();
         textInput.focus();
     }
@@ -260,7 +285,8 @@
         });
 
         textInput.value = text.split('\n').map(l => l.trim()).filter(l => l).join('\n\n');
-        updateUI();
+        finalizeToggle = true; // Chop後はデフォルトで1行あき
+        updateUI(true);
         saveData();
         showToast('Visual Chop!');
     }
@@ -271,22 +297,24 @@
 
         const finalized = lines.map(line => {
             let s = line;
-            // 冒頭の接続詞とカンマを削除
             connectors.forEach(word => {
                 const regex = new RegExp(`^(${word}|,\\s+${word})\\s+`, 'i');
                 s = s.replace(regex, '');
             });
-            // 先頭を大文字に
             s = s.charAt(0).toUpperCase() + s.slice(1);
-            // 末尾にピリオドがなければ追加
             if (!/[.!?]$/.test(s)) s += '.';
             return s;
         });
 
-        textInput.value = finalized.join('\n\n');
-        updateUI();
+        // 連打で改行密度を切り替え
+        const separator = finalizeToggle ? '\n' : '\n\n';
+        textInput.value = finalized.join(separator);
+        
+        showToast(finalizeToggle ? 'Single Spacing' : 'Double Spacing');
+        finalizeToggle = !finalizeToggle;
+        
+        updateUI(true);
         saveData();
-        showToast('Finalized!');
     }
 
     async function copyResult() {
