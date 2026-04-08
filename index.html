@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sentence Chopper - Fridge Combo</title>
+    
+    <link rel="icon" href="image_96.png">
+    <link rel="apple-touch-icon" href="image_96.png">
+
+    <style>
+        :root {
+            --main: #333;
+            --bg: #fff;
+            --accent: #eee;
+            --border: #ccc;
+            --input-bg: #fafafa;
+            --radius: 15px;
+            --text-gray: #666;
+            --placeholder: #bbb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -1.5px; }
+        .subtitle { font-size: 1rem; color: var(--text-gray); font-weight: 600; margin-bottom: 30px; }
+
+        .input-wrapper { position: relative; margin-bottom: 20px; }
+        
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 20px;
+            padding-right: 48px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--input-bg);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            font-weight: 600;
+            color: var(--main) !important;
+            box-sizing: border-box;
+            outline: none;
+            resize: none;
+            -webkit-appearance: none;
+            -webkit-text-fill-color: var(--main) !important;
+            opacity: 1 !important;
+            user-select: text;
+        }
+        textarea::placeholder { color: var(--placeholder); -webkit-text-fill-color: var(--placeholder); }
+
+        .clear-btn {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 1.5rem;
+            font-weight: 800;
+            cursor: pointer;
+            padding: 5px;
+            display: none;
+            z-index: 2;
+        }
+        .clear-btn.active { display: block; }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .action-btn {
+            background: var(--main);
+            color: #fff;
+            border: none;
+            padding: 18px;
+            border-radius: var(--radius);
+            font-weight: 800;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.05s, background-color 0.2s;
+            touch-action: manipulation;
+        }
+        .action-btn:active { transform: scale(0.96); opacity: 0.9; }
+        .action-btn.secondary { background: var(--accent); color: var(--main); font-size: 0.95rem; }
+        .action-btn.copied { background-color: #555 !important; }
+
+        #toast {
+            position: fixed; 
+            top: -60px;
+            left: 0;
+            right: 0;
+            height: 45px;
+            background: var(--main);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            z-index: 3000;
+            transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        #toast.visible { transform: translateY(60px); }
+
+        footer { margin-top: 60px; font-size: 12px; color: #777; line-height: 1.8; font-weight: 500; }
+        footer a { color: inherit; text-decoration: underline; }
+        .footer-btns { margin-top: 30px; }
+        .kofi-btn {
+            display: inline-block; background: var(--main); color: #fff;
+            padding: 14px 28px; border-radius: var(--radius);
+            text-decoration: none; font-weight: bold; font-size: 15px; margin-bottom: 15px;
+        }
+        .home-btn {
+            display: block; width: 70%; margin: 0 auto; background: var(--accent);
+            color: var(--main); border: none; padding: 12px;
+            border-radius: var(--radius); font-weight: 800; font-size: 14px; cursor: pointer;
+        }
+
+        #modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 4000;
+        }
+        .modal-content {
+            background: #fff; width: 85%; max-width: 340px; padding: 35px;
+            border-radius: var(--radius); text-align: left; position: relative;
+        }
+        .close-x { position: absolute; top: 15px; right: 20px; font-size: 24px; color: #888; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="toast">Chop!</div>
+
+<div class="container">
+    <h1>Sentence Chopper</h1>
+    <p class="subtitle">Chop long sentences. Write clearly.</p>
+
+    <div class="input-wrapper">
+        <textarea id="textInput" placeholder="Paste your long English text here...&#10;It will chop sentences at connectors like 'and' or 'but' to help you write shorter, stronger sentences." oninput="handleInput()"></textarea>
+        <button class="clear-btn" id="clrBtn" onclick="clearText()">×</button>
+    </div>
+
+    <div class="controls">
+        <button class="action-btn" onclick="chopText()">Chop Sentences</button>
+        <button class="action-btn secondary" id="copyBtn" onclick="copyResult()">Copy Result</button>
+    </div>
+
+    <div class="footer-btns">
+        <a href="https://ko-fi.com/afrorakda" target="_blank" class="kofi-btn">☕️buy me a coffee</a>
+        <button class="home-btn" onclick="showModal()">Add to Home Screen</button>
+    </div>
+
+    <footer>
+        <div>No login / No tracking / No ads / Browser only</div>
+        <div><a href="https://afrorakda.com/privacy/">Privacy Policy</a> / afrorakda © 2026</div>
+    </footer>
+</div>
+
+<div id="modal" onclick="hideModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <span class="close-x" onclick="hideModal()">×</span>
+        <h3>📱 Install</h3>
+        <p>Add to your home screen.</p>
+        <p>🍏 <strong>iPhone (Safari):</strong><br>Tap Share, then Add to Home Screen.</p>
+        <p>🤖 <strong>Android (Chrome):</strong><br>Tap Menu (⋮), then Add to Home Screen.</p>
+    </div>
+</div>
+
+<script>
+    const textInput = document.getElementById('textInput');
+    const clrBtn = document.getElementById('clrBtn');
+    const toast = document.getElementById('toast');
+    const copyBtn = document.getElementById('copyBtn');
+    let toastTimer;
+
+    const connectors = [
+        'and', 'but', 'or', 'so', 'because', 'although', 
+        'while', 'which', 'who', 'however', 'therefore'
+    ];
+
+    window.onload = () => {
+        const saved = localStorage.getItem('chopper_data');
+        if (saved) {
+            textInput.value = saved;
+            updateClearBtn();
+        }
+    };
+
+    function handleInput() {
+        updateClearBtn();
+        saveData();
+    }
+
+    function saveData() {
+        localStorage.setItem('chopper_data', textInput.value);
+    }
+
+    function updateClearBtn() {
+        clrBtn.classList.toggle('active', textInput.value !== '');
+    }
+
+    function clearText() {
+        textInput.value = '';
+        updateClearBtn();
+        saveData();
+        textInput.focus();
+    }
+
+    function chopText() {
+        let text = textInput.value;
+        if (!text.trim()) return;
+
+        // 接続詞の直前で改行（大文字小文字無視、単語境界チェック）
+        // カンマ+スペース+接続詞 のパターンも考慮
+        connectors.forEach(word => {
+            const regex = new RegExp(`(\\s?,?\\s+)(?=${word}\\b)`, 'gi');
+            text = text.replace(regex, '\n');
+        });
+
+        // 連続する空行を整理し、各行をトリム
+        text = text.split('\n')
+                   .map(line => line.trim())
+                   .filter(line => line.length > 0)
+                   .join('\n\n'); // 視認性を高めるため1行あける
+
+        textInput.value = text;
+        saveData();
+        showToast('Chopped!');
+    }
+
+    async function copyResult() {
+        if (!textInput.value.trim()) return;
+        try {
+            await navigator.clipboard.writeText(textInput.value);
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = 'Copied!';
+            copyBtn.classList.add('copied');
+            showToast('Copied!');
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.classList.remove('copied');
+            }, 1500);
+        } catch (err) {}
+    }
+
+    function showToast(msg) {
+        clearTimeout(toastTimer);
+        toast.innerText = msg;
+        toast.classList.add('visible');
+        toastTimer = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 1200);
+    }
+
+    function showModal() { document.getElementById('modal').style.display = 'flex'; }
+    function hideModal() { document.getElementById('modal').style.display = 'none'; }
+</script>
+
+</body>
+</html>
